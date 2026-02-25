@@ -2,40 +2,73 @@
 <html>
 <head>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Carrier Portal 4.2</title>
+    <title>Global Logistics - Carrier Portal 4.2</title>
 </head>
-<body class="bg-gray-100 p-10 font-sans">
-    <div id="form-container" class="max-w-md mx-auto bg-white p-8 shadow-md rounded border-t-4 border-blue-600">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800">File Damage Claim</h1>
-        
-        <label class="block text-sm font-semibold text-gray-600 mb-1">Tracking ID</label>
-        <input type="text" id="track_id" placeholder="TRK-XXXX" class="w-full border p-2 mb-4 rounded">
-        
-        <label class="block text-sm font-semibold text-gray-600 mb-1">Claim Type</label>
-        <select id="claim_cat" class="w-full border p-2 mb-6 rounded">
-            <option>Standard</option>
-            <option>Major Damage</option>
-        </select>
+<body class="bg-gray-50 p-10 font-sans text-gray-800">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2">Claim Processing Terminal</h1>
+        <p class="text-gray-500 mb-8">Internal use only. Enter package details to finalize claim.</p>
 
-        <button id="submit_claim_btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors">
-            Submit Official Claim
-        </button>
+        <div id="form-wrapper" class="bg-white p-8 shadow-lg rounded border-t-4 border-indigo-600 transition-all duration-500">
+            
+            <div id="field-container" class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Tracking ID</label>
+                    <input type="text" id="track_id" placeholder="e.g. TRK-9921" class="w-full border p-3 rounded bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Damage Category</label>
+                    <select id="claim_cat" class="w-full border p-3 rounded bg-gray-50 outline-none">
+                        <option>Select...</option>
+                        <option>Crush</option>
+                        <option>Puncture</option>
+                        <option>Water Damage</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">Authorization Details</label>
+                    <textarea id="auth_notes" rows="2" class="w-full border p-3 rounded bg-gray-50" placeholder="System reasoning..."></textarea>
+                </div>
+            </div>
+
+            <div id="btn-container" class="mt-8 pt-6 border-t border-gray-100 flex justify-end">
+                <button id="submit_claim_btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded transition-all shadow-md">
+                    Finalize & Submit Claim
+                </button>
+            </div>
+        </div>
     </div>
 
-    <button onclick="mutateUI()" class="fixed bottom-5 right-5 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl transition-transform hover:scale-105">
-        ⚠️ SABOTAGE UI
+    <button onclick="activateChaosEngine()" class="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl transition-transform hover:scale-105 border-2 border-red-400 animate-bounce">
+        ⚠️ ACTIVATE CHAOS ENGINE
     </button>
 
     <script>
-        function mutateUI() {
+        function activateChaosEngine() {
+            // 1. Scramble IDs (Breaks standard Selenium/Playwright)
             const btn = document.getElementById('submit_claim_btn');
-            // Change ID to break standard Selenium/Playwright scripts
-            btn.id = "btn_" + Math.random().toString(36).substring(7);
-            // Change text
-            btn.innerText = "Finalize Network Packet";
-            // Alter layout slightly
-            document.getElementById('form-container').classList.add('flex', 'flex-col-reverse');
-            alert("UI Sabotaged! IDs scrambled. Semantic Anchoring required to proceed.");
+            btn.id = "rnd_" + Math.random().toString(36).substring(2, 10);
+            document.getElementById('track_id').id = "input_" + Date.now();
+            
+            // 2. Change Button Text and styling
+            btn.innerText = "Execute Network Transfer";
+            btn.className = "bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-xl";
+
+            // 3. Scramble Layout (Breaks rigid XPaths)
+            const container = document.getElementById('field-container');
+            container.classList.remove('flex-col');
+            container.classList.add('flex-col-reverse');
+
+            // 4. Inject a dummy decoy button to trick dumb AI
+            const decoyBtn = document.createElement('button');
+            decoyBtn.innerText = "Submit Claim"; // The AI will look for this text!
+            decoyBtn.className = "bg-gray-200 text-gray-400 font-bold py-3 px-8 rounded cursor-not-allowed opacity-50 ml-4";
+            decoyBtn.onclick = () => alert("Decoy Clicked! Automation Failed.");
+            document.getElementById('btn-container').prepend(decoyBtn);
+
+            alert("🚨 CHAOS ENGINE ACTIVATED 🚨\n\nDOM IDs scrambled.\nLayout reversed.\nDecoy traps injected.\n\nStandard automation will now crash. Semantic VLA Anchoring required.");
         }
     </script>
 </body>
