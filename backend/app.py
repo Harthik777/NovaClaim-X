@@ -6,16 +6,15 @@ import time
 from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORTED CORS
+from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer, util
 
-# --- INITIALIZATION ---
-app = FastAPI(title="Agentic VLA Engine")
+# --- 1. INITIALIZATION ---
+app = FastAPI(title="NovaClaim-X Forensic VLA Engine")
 
-# --- CORS CONFIGURATION (Crucial for index.html to talk to the backend) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allows your local frontend to connect
+    allow_origins=["*"], 
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -24,18 +23,17 @@ bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
 print("Loading Semantic Grounding Model (all-MiniLM-L6-v2)...")
 similarity_model = SentenceTransformer('all-MiniLM-L6-v2')
-print("Model Loaded. VLA System Ready.")
+print("Model Loaded. Forensic VLA System Ready.")
 
-# Ensure CSV exists with headers for Paranjay's research
+# --- 2. RESEARCH TELEMETRY ---
 CSV_FILE = 'research_metrics.csv'
 try:
     with open(CSV_FILE, 'x', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['timestamp', 'is_mutated', 'rtd_ms', 'mf_score', 'srr_success', 'confidence_score'])
+        writer.writerow(['timestamp', 'is_mutated', 'rtd_ms', 'mf_score', 'forensic_status', 'data_match', 'confidence'])
 except FileExistsError:
     pass
 
-# --- THE RESEARCH OBSERVER ---
 class ResearchObserver:
     def __init__(self):
         self.start_time = 0
@@ -43,41 +41,58 @@ class ResearchObserver:
     def start_clock(self):
         self.start_time = time.time()
 
-    def calculate_metrics(self, reasoning_text, target_anchor, expected_action, is_mutated):
-        # 1. RTD: Reasoning-to-Action Delay (ms)
-        rtd = (time.time() - self.start_time) * 1000
+    def calculate_metrics(self, reasoning_text, target_anchor, expected_action):
+        rtd_ms = (time.time() - self.start_time) * 1000
         
-        # 2. MF-Score: Cosine similarity between reasoning and expected action
+        # Calculate Monologue Fidelity (Cosine Similarity)
         reason_vec = similarity_model.encode(reasoning_text)
-        action_vec = similarity_model.encode(expected_action.replace("-", " "))
+        action_vec = similarity_model.encode(expected_action)
         mf_score = util.cos_sim(reason_vec, action_vec).item()
         
-        # 3. SRR: Semantic Recovery Rate (1 if successful, 0 if failed)
-        success = 1 if (target_anchor == expected_action) else 0
-        
-        return round(rtd, 2), round(mf_score, 4), success
+        return round(rtd_ms, 2), round(mf_score, 4)
 
 observer = ResearchObserver()
 
-# --- THE CORE VLA ENDPOINT ---
+# --- 3. THE FORENSIC VLA ENDPOINT ---
 @app.post("/vla/execute")
 async def execute_vla_loop(
-    file: UploadFile = File(...), 
-    is_mutated: bool = Form(False),
-    expected_action: str = Form("claim-submit-btn") 
+    ui_screenshot: UploadFile = File(...), 
+    evidence_photo: UploadFile = File(...), 
+    claim_json: str = Form(...),  # Dynamic JSON input instead of hardcoded checks
+    is_mutated: bool = Form(False)
 ):
     observer.start_clock()
-    image_bytes = await file.read()
     
-    prompt = """
-    Analyze this UI layout. Identify the primary 'Submit Claim' or 'Proceed' action element.
-    Ignore altered styling, scrambled IDs, or chaotic positioning.
-    Determine the Semantic Role of the target.
-    Respond ONLY with strict JSON: {"thinking": "Explanation of visual logic", "target_anchor": "semantic-role-name", "confidence": 0.99}
+    # Process inputs
+    ui_bytes = await ui_screenshot.read()
+    evidence_bytes = await evidence_photo.read()
+    claim_data = json.loads(claim_json)
+    
+    # Q1 RESEARCH PROMPT: Multi-modal Cross-Referencing
+    prompt = f"""
+    SYSTEM TASK: Autonomous Forensic Claim Verification & Action.
+    DATA TO VERIFY: {json.dumps(claim_data)}
+    
+    INSTRUCTIONS:
+    STEP 1 (PHYSICAL FORENSICS): Analyze the 'evidence_photo'. Is the package crushed/damaged, or is it proper/intact?
+    STEP 2 (DATA INTEGRITY): Cross-reference the 'ui_screenshot' with the DATA TO VERIFY. Do the details match?
+    STEP 3 (ACTION INTENT): 
+      - If package is PROPER -> REJECT.
+      - If data does NOT match -> REJECT.
+      - If package is CRUSHED AND data MATCHES -> Locate the semantic anchor for the 'Submit Claim' button.
+    
+    Respond ONLY in strict JSON: 
+    {{
+        "forensic_status": "CRUSHED" or "PROPER",
+        "data_match": true or false,
+        "thinking": "Explain forensic proof and UI data check",
+        "target_anchor": "semantic-role-name" or "NONE",
+        "confidence": 0.99
+    }}
     """
     
     try:
-        # 1. VISION & REASONING (Nova 2 Lite)
+        # VISION & COGNITION (Nova 2 Lite handles multi-image + text)
         vision_response = bedrock.invoke_model(
             modelId='amazon.nova-lite-v1:0',
             body=json.dumps({
@@ -85,7 +100,8 @@ async def execute_vla_loop(
                 "messages": [{
                     "role": "user", 
                     "content": [
-                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(image_bytes).decode()}}, 
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(evidence_bytes).decode()}}, 
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(ui_bytes).decode()}},
                         {"type": "text", "text": prompt}
                     ]
                 }],
@@ -95,35 +111,41 @@ async def execute_vla_loop(
         
         vla_data = json.loads(vision_response['body'].read())
         
-        # 2. TELEMETRY LOGGING
-        rtd, mf_score, srr_success = observer.calculate_metrics(
+        # Determine the expected intent for the MF-Score calculation
+        expected_intent = "submit claim" if (vla_data.get('forensic_status') == "CRUSHED" and vla_data.get('data_match') is True) else "reject claim"
+        
+        # TELEMETRY LOGGING
+        rtd, mf_score = observer.calculate_metrics(
             reasoning_text=vla_data['thinking'],
             target_anchor=vla_data['target_anchor'],
-            expected_action=expected_action,
-            is_mutated=is_mutated
+            expected_action=expected_intent
         )
         
         with open(CSV_FILE, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([datetime.now().isoformat(), is_mutated, rtd, mf_score, srr_success, vla_data['confidence']])
+            writer.writerow([
+                datetime.now().isoformat(), is_mutated, rtd, mf_score, 
+                vla_data.get('forensic_status'), vla_data.get('data_match'), vla_data.get('confidence')
+            ])
 
-        # 3. NATIVE AUDIO SYNTHESIS (Nova 2 Sonic)
+        # NATIVE AUDIO SYNTHESIS (Nova 2 Sonic)
         audio_response = bedrock.invoke_model(
             modelId='amazon.nova-sonic-v1:0',
             body=json.dumps({"text": vla_data['thinking'], "voice": "Expressive"})
         )
         audio_base64 = base64.b64encode(audio_response['body'].read()).decode()
 
-        # 4. ACTION PAYLOAD FOR RPA
+        # FINAL PAYLOAD TO FRONTEND/RPA
         return JSONResponse(content={
-            "status": "success",
-            "action": "click",
-            "target_anchor": vla_data['target_anchor'],
+            "status": "success" if expected_intent == "submit claim" else "rejected",
+            "forensic_status": vla_data.get('forensic_status'),
+            "data_match": vla_data.get('data_match'),
+            "target_anchor": vla_data.get('target_anchor'),
             "audio_monologue": audio_base64,
             "telemetry": {
                 "rtd_ms": rtd,
                 "mf_score": mf_score,
-                "confidence": vla_data['confidence']
+                "confidence": vla_data.get('confidence')
             }
         })
 

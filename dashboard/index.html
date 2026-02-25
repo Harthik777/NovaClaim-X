@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>NovaClaim-X | VLA Terminal</title>
+    <title>NovaClaim-X | Forensic VLA Terminal</title>
     <style>
         .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-left: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -16,64 +16,82 @@
     <header class="mb-8 border-b border-slate-800 pb-4 flex justify-between items-end">
         <div>
             <h1 class="text-3xl font-bold text-white tracking-tight">NovaClaim-X</h1>
-            <p class="text-xs text-blue-500 uppercase tracking-widest mt-1">Autonomous Vision-Language-Action Protocol</p>
+            <p class="text-xs text-blue-500 uppercase tracking-widest mt-1">Autonomous Forensic VLA Protocol</p>
         </div>
         <div id="status-indicator" class="text-xs font-bold px-3 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">
             SYSTEM IDLE
         </div>
     </header>
 
-    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        <div class="space-y-6">
+        <div class="lg:col-span-5 space-y-6">
             <div class="bg-slate-900 p-6 rounded-lg border border-slate-800 shadow-2xl relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                <h2 class="text-lg font-semibold text-white mb-4">Visual Input Stream</h2>
+                <h2 class="text-lg font-semibold text-white mb-4">Multimodal Input Stream</h2>
                 
-                <input type="file" id="image-upload" accept="image/*" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:uppercase file:bg-slate-800 file:text-blue-400 hover:file:bg-slate-700 cursor-pointer transition-colors"/>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">1. UI Screenshot (Digital State)</label>
+                <input type="file" id="ui-upload" accept="image/*" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:uppercase file:bg-slate-800 file:text-blue-400 hover:file:bg-slate-700 cursor-pointer"/>
+                
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">2. Evidence Photo (Physical State)</label>
+                <input type="file" id="evidence-upload" accept="image/*" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:uppercase file:bg-slate-800 file:text-purple-400 hover:file:bg-slate-700 cursor-pointer"/>
+
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">3. Claim Data (Ground Truth JSON)</label>
+                <textarea id="claim-json" rows="4" class="w-full bg-slate-950 text-emerald-400 border border-slate-700 rounded p-3 text-xs font-mono mb-4 focus:outline-none focus:border-blue-500">{
+  "tracking_id": "AW-994821",
+  "damage_reported": "Severe Crushing"
+}</textarea>
                 
                 <div class="flex items-center justify-between mb-4 p-3 bg-slate-950 rounded border border-slate-800">
-                    <span class="text-xs font-bold text-slate-500 uppercase">Adversarial Mutation (Chaos)</span>
+                    <span class="text-xs font-bold text-slate-500 uppercase">Adversarial Mutation (Chaos Engine)</span>
                     <input type="checkbox" id="chaos-toggle" class="w-4 h-4 accent-blue-500">
                 </div>
 
                 <button id="exec-btn" onclick="runPipeline()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded text-sm uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span id="btn-text">Initialize VLA Loop</span>
+                    <span id="btn-text">Initialize Forensic VLA Loop</span>
                     <span id="btn-loader" class="loader hidden"></span>
                 </button>
             </div>
+        </div>
 
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
             <div class="bg-slate-900 p-6 rounded-lg border border-slate-800 shadow-2xl">
-                <h2 class="text-lg font-semibold text-white mb-4">Research Telemetry</h2>
-                <div class="grid grid-cols-2 gap-4 text-xs">
+                <h2 class="text-lg font-semibold text-white mb-4">Forensic Telemetry</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Target Anchor</span>
-                        <span id="meta-anchor" class="text-blue-400 font-bold text-sm">--</span>
+                        <span class="text-slate-500 block mb-1">Forensic Status</span>
+                        <span id="meta-forensic" class="text-yellow-400 font-bold text-sm">--</span>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded border border-slate-800">
+                        <span class="text-slate-500 block mb-1">Data Match</span>
+                        <span id="meta-match" class="text-purple-400 font-bold text-sm">--</span>
                     </div>
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
                         <span class="text-slate-500 block mb-1">MF-Score (Fidelity)</span>
                         <span id="meta-mf" class="text-green-400 font-bold text-sm">--</span>
                     </div>
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Confidence</span>
-                        <span id="meta-conf" class="text-purple-400 font-bold text-sm">--</span>
-                    </div>
-                    <div class="bg-slate-950 p-3 rounded border border-slate-800">
                         <span class="text-slate-500 block mb-1">RTD Latency</span>
-                        <span id="meta-latency" class="text-yellow-400 font-bold text-sm">--</span>
+                        <span id="meta-latency" class="text-blue-400 font-bold text-sm">--</span>
                     </div>
                 </div>
+                <div class="mt-4 bg-slate-950 p-3 rounded border border-slate-800">
+                    <span class="text-slate-500 block mb-1 text-xs">Action / Target Anchor</span>
+                    <span id="meta-anchor" class="text-white font-bold text-sm tracking-wider">--</span>
+                </div>
             </div>
-        </div>
 
-        <div class="bg-[#0a0a0a] p-6 rounded-lg border border-slate-800 shadow-2xl relative font-mono text-sm">
-            <h2 class="text-lg font-semibold text-white mb-4 border-b border-slate-800 pb-2">Agentic Monologue Stream</h2>
-            <div id="logs" class="h-96 overflow-y-auto text-emerald-500 space-y-3 pb-8 leading-relaxed">
-                <div class="text-slate-500">> System initialized. Waiting for optical input...</div>
+            <div class="bg-[#0a0a0a] p-6 rounded-lg border border-slate-800 shadow-2xl relative font-mono text-sm flex-grow">
+                <h2 class="text-lg font-semibold text-white mb-4 border-b border-slate-800 pb-2">Agentic Reasoning Stream</h2>
+                <div id="logs" class="h-64 overflow-y-auto text-emerald-500 space-y-3 pb-8 leading-relaxed">
+                    <div class="text-slate-500">> System initialized. Waiting for multimodal input...</div>
+                </div>
+                <div class="absolute bottom-3 right-4 text-[10px] text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div> VLA Active
+                </div>
             </div>
-            <div class="absolute bottom-3 right-4 text-[10px] text-slate-600 uppercase tracking-widest flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div> VLA Active
-            </div>
+
         </div>
     </div>
 
@@ -89,53 +107,67 @@
 
             if (state === 'processing') {
                 btn.disabled = true;
-                btnText.innerText = "Executing Loop...";
+                btnText.innerText = "Executing Forensic Loop...";
                 loader.classList.remove('hidden');
                 indicator.className = "text-xs font-bold px-3 py-1 rounded bg-blue-900 text-blue-300 border border-blue-700 animate-pulse";
             } else {
                 btn.disabled = false;
-                btnText.innerText = state === 'error' ? "Retry Pipeline" : "Initialize VLA Loop";
+                btnText.innerText = state === 'error' ? "Retry Pipeline" : "Initialize Forensic VLA Loop";
                 loader.classList.add('hidden');
                 indicator.className = state === 'error' ? "text-xs font-bold px-3 py-1 rounded bg-red-900 text-red-300 border border-red-700" : "text-xs font-bold px-3 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700";
             }
         }
 
         async function runPipeline() {
-            const fileInput = document.getElementById('image-upload');
+            const uiInput = document.getElementById('ui-upload');
+            const evidenceInput = document.getElementById('evidence-upload');
+            const claimJsonStr = document.getElementById('claim-json').value;
             const isMutated = document.getElementById('chaos-toggle').checked;
 
-            if (!fileInput.files[0]) {
-                addLog("ERROR: No optical input detected.", "text-red-500");
+            if (!uiInput.files[0] || !evidenceInput.files[0]) {
+                addLog("ERROR: Both UI Screenshot and Evidence Photo are required.", "text-red-500");
+                return;
+            }
+
+            try {
+                JSON.parse(claimJsonStr); // Validate JSON format
+            } catch (e) {
+                addLog("ERROR: Invalid Claim Data JSON format.", "text-red-500");
                 return;
             }
 
             if (currentAudio) { currentAudio.pause(); }
 
             const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
+            formData.append("ui_screenshot", uiInput.files[0]);
+            formData.append("evidence_photo", evidenceInput.files[0]);
+            formData.append("claim_json", claimJsonStr);
             formData.append("is_mutated", isMutated);
-            formData.append("expected_action", "claim-submit-btn");
 
-            setUIState('processing', 'CALLING NOVA VLA ENGINE');
-            addLog(`Initializing VLA Loop (Chaos: ${isMutated})...`, "text-slate-400");
+            setUIState('processing', 'CALLING FORENSIC VLA ENGINE');
+            addLog(`Initializing Multimodal Verification (Chaos: ${isMutated})...`, "text-slate-400");
 
             try {
-                // SINGLE UNIFIED CALL TO YOUR BACKEND
                 const response = await fetch('http://localhost:8000/vla/execute', { method: 'POST', body: formData });
                 if (!response.ok) throw new Error(`VLA Engine Error: ${response.status}`);
                 
                 const data = await response.json();
                 
-                // UPDATE RESEARCH TELEMETRY
-                document.getElementById('meta-anchor').innerText = data.target_anchor;
+                // Update Research Telemetry UI
+                document.getElementById('meta-forensic').innerText = data.forensic_status || "N/A";
+                document.getElementById('meta-match').innerText = data.data_match ? "TRUE" : "FALSE";
+                document.getElementById('meta-anchor').innerText = data.target_anchor || "ACTION HALTED";
                 document.getElementById('meta-mf').innerText = data.telemetry.mf_score;
-                document.getElementById('meta-conf').innerText = `${(data.telemetry.confidence * 100).toFixed(1)}%`;
                 document.getElementById('meta-latency').innerText = `${data.telemetry.rtd_ms}ms`;
 
-                addLog(`Action Identified: ${data.target_anchor.toUpperCase()}`, "text-blue-400 font-bold");
+                if (data.status === "rejected") {
+                    addLog(`CLAIM REJECTED: Forensic Status [${data.forensic_status}] | Data Match [${data.data_match}]`, "text-red-400 font-bold");
+                } else {
+                    addLog(`CLAIM VERIFIED. Target Anchor Identified: ${data.target_anchor}`, "text-blue-400 font-bold");
+                }
+                
                 addLog("Status: Playing Sonic Reasoning Monologue...", "text-emerald-400 italic");
 
-                // PLAY SONIC VOICE
                 if (data.audio_monologue) {
                     currentAudio = new Audio("data:audio/mp3;base64," + data.audio_monologue);
                     currentAudio.play();
