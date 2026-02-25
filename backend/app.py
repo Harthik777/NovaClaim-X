@@ -10,32 +10,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer, util
 
 # --- 1. INITIALIZATION ---
-app = FastAPI(title="NovaClaim-X Full VLA Engine")
+app = FastAPI(title="NovaClaim-X Q1 VLA Engine")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
-
-print("Loading Semantic Grounding Model (all-MiniLM-L6-v2)...")
 similarity_model = SentenceTransformer('all-MiniLM-L6-v2')
-print("Model Loaded. Forensic VLA System Ready.")
 
 # Load Knowledge Base for True Dynamic RAG
 try:
     with open("knowledge_base.json", "r") as f:
         knowledge_base = json.load(f)
-    # Pre-compute embeddings for the knowledge base
-    kb_texts = [f"Historical Damage: {item['historical_damage']} -> Required SOP Action: {item['sop_action']}" for item in knowledge_base]
+    kb_texts = [f"Damage: {item['historical_damage']} -> Action: {item['sop_action']}" for item in knowledge_base]
     kb_embeddings = similarity_model.encode(kb_texts)
 except FileNotFoundError:
-    print("WARNING: knowledge_base.json not found. RAG will fail.")
-    knowledge_base = []
+    kb_texts, kb_embeddings = [], []
 
-# --- 2. RESEARCH TELEMETRY ---
+# --- 2. RESEARCH TELEMETRY (Updated for Entropy Slider) ---
 CSV_FILE = 'research_metrics.csv'
 try:
     with open(CSV_FILE, 'x', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['timestamp', 'is_mutated', 'rtd_ms', 'mf_score', 'damage_severity', 'sop_decision'])
+        # Added chaos_level to track the Ablation Study degradation curve
+        writer.writerow(['timestamp', 'chaos_level', 'rtd_ms', 'mf_score', 'damage_severity', 'sop_decision'])
 except FileExistsError: pass
 
 class ResearchObserver:
@@ -48,13 +44,13 @@ class ResearchObserver:
 
 observer = ResearchObserver()
 
-# --- 3. THE FORENSIC + DYNAMIC RAG ENDPOINT ---
+# --- 3. THE FORENSIC + DYNAMIC RAG + VISUAL GROUNDING ENDPOINT ---
 @app.post("/vla/execute")
 async def execute_vla_loop(
     ui_screenshot: UploadFile = File(...), 
     evidence_photo: UploadFile = File(...), 
     claim_json: str = Form(...),
-    is_mutated: bool = Form(False)
+    chaos_level: int = Form(0) # UPGRADE 2: Entropy Slider Value (0-100)
 ):
     observer.start_clock()
     
@@ -62,41 +58,39 @@ async def execute_vla_loop(
     evidence_bytes = await evidence_photo.read()
     claim_data = json.loads(claim_json)
     
-    # --- TRUE RAG PIPELINE (Semantic Search) ---
+    # RAG PIPELINE
     reported_damage = claim_data.get("damage_reported", "")
-    query_embedding = similarity_model.encode(reported_damage)
+    if len(kb_embeddings) > 0:
+        query_embedding = similarity_model.encode(reported_damage)
+        hits = util.semantic_search(query_embedding, kb_embeddings, top_k=2)[0]
+        retrieved_sops = "\n".join([kb_texts[hit['corpus_id']] for hit in hits])
+    else:
+        retrieved_sops = "No SOPs available."
     
-    # Retrieve top 2 most similar historical cases
-    hits = util.semantic_search(query_embedding, kb_embeddings, top_k=2)[0]
-    retrieved_sops = "\n".join([kb_texts[hit['corpus_id']] for hit in hits])
-    # -------------------------------------------
-    
-    # Q1 RESEARCH PROMPT: Multi-modal + True RAG + Voice Governance
+    # Q1 RESEARCH PROMPT: Added Visual Grounding (Bounding Box coordinates)
     prompt = f"""
-    SYSTEM TASK: Autonomous Forensic Claim Verification & SOP Enforcement.
+    SYSTEM TASK: Autonomous Forensic Claim Verification & Visual Grounding.
     DATA TO VERIFY: {json.dumps(claim_data)}
-    
-    DYNAMICALLY RETRIEVED HISTORICAL SOPs (Based on '{reported_damage}'):
-    {retrieved_sops}
+    RETRIEVED SOPs: {retrieved_sops}
     
     INSTRUCTIONS:
     1. Analyze 'evidence_photo' to determine Damage Severity.
     2. Check 'ui_screenshot' to ensure Data Integrity against DATA TO VERIFY.
-    3. Ground your decision entirely in the DYNAMICALLY RETRIEVED HISTORICAL SOPs to determine the Action (DEPLOY, ESCALATE, REJECT).
-    4. Find the 'Submit Claim' semantic anchor in the UI.
+    3. Ground your decision entirely in the RETRIEVED SOPs to determine Action (DEPLOY, ESCALATE, REJECT).
+    4. If DEPLOY is chosen, locate the 'Submit Claim' button on the 'ui_screenshot' and extract its spatial bounding box.
     
     Respond strictly in JSON: 
     {{
         "damage_severity": "MINOR", "MAJOR", or "PROPER",
         "sop_decision": "DEPLOY", "ESCALATE", or "REJECT",
-        "thinking": "Explain forensic proof, data check, and how retrieved SOPs were applied",
+        "thinking": "Explain forensic proof and SOP application",
         "target_anchor": "semantic-role-name",
-        "voice_prompt": "Create a short 1-sentence summary of the damage. End exactly with: 'Say Deploy to submit or Escalate to review.'"
+        "bounding_box": [ymin, xmin, ymax, xmax] format normalized 0-1000 scale, empty list [] if rejected/escalated,
+        "voice_prompt": "1-sentence damage summary. End exactly with: 'Say Deploy to submit or Escalate to review.'"
     }}
     """
     
     try:
-        # VISION & COGNITION
         vision_response = bedrock.invoke_model(
             modelId='amazon.nova-lite-v1:0',
             body=json.dumps({
@@ -116,10 +110,10 @@ async def execute_vla_loop(
         vla_data = json.loads(vision_response['body'].read())
         rtd, mf_score = observer.calculate_metrics(vla_data['thinking'], vla_data['sop_decision'])
         
+        # Log the specific Chaos Level for the Robustness Curve
         with open(CSV_FILE, 'a', newline='') as f:
-            csv.writer(f).writerow([datetime.now().isoformat(), is_mutated, rtd, mf_score, vla_data['damage_severity'], vla_data['sop_decision']])
+            csv.writer(f).writerow([datetime.now().isoformat(), chaos_level, rtd, mf_score, vla_data['damage_severity'], vla_data['sop_decision']])
 
-        # VOICE GOVERNANCE SYNTHESIS (Nova 2 Sonic)
         audio_response = bedrock.invoke_model(
             modelId='amazon.nova-sonic-v1:0',
             body=json.dumps({"text": vla_data['voice_prompt'], "voice": "Expressive"})
@@ -130,14 +124,11 @@ async def execute_vla_loop(
             "status": "success",
             "damage_severity": vla_data['damage_severity'],
             "sop_decision": vla_data['sop_decision'],
-            "target_anchor": vla_data['target_anchor'] if vla_data['sop_decision'] == "DEPLOY" else None,
+            "target_anchor": vla_data['target_anchor'],
+            "bounding_box": vla_data.get('bounding_box', []), # UPGRADE 1: Return Coordinates
             "audio_monologue": audio_base64,
-            "telemetry": {"rtd_ms": rtd, "mf_score": mf_score}
+            "telemetry": {"rtd_ms": rtd, "mf_score": mf_score, "chaos_level": chaos_level}
         })
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
