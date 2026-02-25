@@ -2,25 +2,40 @@
 <html>
 <head>
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Carrier Portal</title>
+    <title>Carrier Portal 4.2</title>
 </head>
 <body class="bg-gray-100 p-10 font-sans">
-    <div class="max-w-md mx-auto bg-white p-8 shadow-md rounded">
-        <h1 class="text-2xl font-bold mb-6">File Damage Claim</h1>
-        <input type="text" id="track_id" placeholder="Tracking ID" class="w-full border p-2 mb-4 rounded">
-        <button id="submit_btn" class="w-full bg-blue-600 text-white font-bold py-2 rounded">Submit Claim</button>
+    <div id="form-container" class="max-w-md mx-auto bg-white p-8 shadow-md rounded border-t-4 border-blue-600">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">File Damage Claim</h1>
+        
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Tracking ID</label>
+        <input type="text" id="track_id" placeholder="TRK-XXXX" class="w-full border p-2 mb-4 rounded">
+        
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Claim Type</label>
+        <select id="claim_cat" class="w-full border p-2 mb-6 rounded">
+            <option>Standard</option>
+            <option>Major Damage</option>
+        </select>
+
+        <button id="submit_claim_btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors">
+            Submit Official Claim
+        </button>
     </div>
 
-    <button onclick="sabotage()" class="fixed bottom-5 right-5 bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg">
+    <button onclick="mutateUI()" class="fixed bottom-5 right-5 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl transition-transform hover:scale-105">
         ⚠️ SABOTAGE UI
     </button>
 
     <script>
-        function sabotage() {
-            const btn = document.getElementById('submit_btn');
-            btn.id = "random_" + Math.random().toString(36).substring(7);
-            btn.innerText = "Confirm Data";
-            alert("UI Sabotaged! Standard automation will now fail.");
+        function mutateUI() {
+            const btn = document.getElementById('submit_claim_btn');
+            // Change ID to break standard Selenium/Playwright scripts
+            btn.id = "btn_" + Math.random().toString(36).substring(7);
+            // Change text
+            btn.innerText = "Finalize Network Packet";
+            // Alter layout slightly
+            document.getElementById('form-container').classList.add('flex', 'flex-col-reverse');
+            alert("UI Sabotaged! IDs scrambled. Semantic Anchoring required to proceed.");
         }
     </script>
 </body>

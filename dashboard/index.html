@@ -7,18 +7,24 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen font-mono p-10">
     <div class="max-w-5xl mx-auto grid grid-cols-2 gap-8">
         
-        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h2 class="text-xl font-bold text-blue-400 mb-4">VLA Vision Input</h2>
-            <input type="file" id="image-upload" class="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-            <button onclick="runPipeline()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded">
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+            <h2 class="text-xl font-bold text-blue-400 mb-4 flex justify-between">
+                <span>VLA Vision Input</span>
+                <span id="latency-badge" class="hidden bg-blue-900/50 text-blue-300 text-xs py-1 px-2 rounded border border-blue-500/30"></span>
+            </h2>
+            <input type="file" id="image-upload" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"/>
+            <button onclick="runPipeline()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition-all">
                 Execute Nova Reasoning
             </button>
         </div>
 
-        <div class="bg-black p-6 rounded-xl border border-green-900">
+        <div class="bg-black p-6 rounded-xl border border-green-900/50 shadow-xl relative">
             <h2 class="text-xl font-bold text-green-500 mb-4">Agentic Monologue</h2>
-            <div id="logs" class="h-64 overflow-y-auto text-sm text-green-400 space-y-2">
+            <div id="logs" class="h-64 overflow-y-auto text-sm text-green-400 space-y-2 pb-4">
                 <div>> System Initialized... Waiting for visual input.</div>
+            </div>
+            <div class="absolute bottom-4 right-4 text-[10px] text-slate-600 uppercase tracking-widest">
+                ● Telemetry Active
             </div>
         </div>
     </div>
@@ -32,14 +38,21 @@
             formData.append("file", fileInput.files[0]);
 
             addLog("Uploading image to Nova 2 Lite...");
+            document.getElementById('latency-badge').classList.add('hidden');
 
-            // 1. Get Vision Analysis
             try {
+                // 1. Get Vision Analysis & Latency
                 const visionRes = await fetch('http://localhost:8000/analyze-damage', { method: 'POST', body: formData });
                 const visionData = await visionRes.json();
                 
                 if (visionData.status === "success") {
                     addLog(`Vision Logic: ${visionData.analysis}`);
+                    
+                    // Display Latency Metric for Demo
+                    const badge = document.getElementById('latency-badge');
+                    badge.innerText = `Latency: ${visionData.latency}s`;
+                    badge.classList.remove('hidden');
+
                     addLog("Requesting Sonic Voice Authorization...");
                     
                     // 2. Trigger Voice Generation
@@ -55,10 +68,14 @@
                         const audio = new Audio("data:audio/mp3;base64," + voiceData.audio);
                         audio.play();
                         addLog("Status: Sonic Voice Playing...");
+                    } else {
+                        addLog(`Voice Error: ${voiceData.message}`);
                     }
+                } else {
+                    addLog(`Vision Error: ${visionData.message}`);
                 }
             } catch (err) {
-                addLog(`Error connecting to backend: ${err.message}`);
+                addLog(`Critical Error: Backend Offline. Ensure app.py is running. (${err.message})`);
             }
         }
 

@@ -1,6 +1,10 @@
 import boto3
 import json
 import base64
+import time
+import csv
+import os
+from datetime import datetime
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,15 +19,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize AWS Bedrock (Requires 'aws configure' in terminal)
+# Initialize AWS Bedrock
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 
 class VoiceRequest(BaseModel):
     text: str
 
+def log_for_research(image_name, reasoning, latency):
+    """Saves VLA metrics to a CSV file for the research paper."""
+    file_exists = os.path.isfile('research_metrics.csv')
+    with open('research_metrics.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['Timestamp', 'Image_Name', 'Agentic_Reasoning', 'Latency_Seconds'])
+        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), image_name, reasoning, latency])
+
 @app.post("/analyze-damage")
 async def analyze_damage(file: UploadFile = File(...)):
-    """Vision-Language Model: Analyzes the image using Nova 2 Lite"""
+    """Vision-Language Model: Analyzes image and tracks latency."""
+    start_time = time.time()
+    
     try:
         image_bytes = await file.read()
         encoded_image = base64.b64encode(image_bytes).decode('utf-8')
@@ -38,26 +53,30 @@ async def analyze_damage(file: UploadFile = File(...)):
         response = bedrock.invoke_model(
             modelId="amazon.nova-2-lite-v1",
             body=json.dumps({
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image", "source": {"bytes": encoded_image}}
-                    ]
-                }]
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image", "source": {"bytes": encoded_image}}
+                ]}]
             })
         )
         
         result = json.loads(response['body'].read())
-        return {"status": "success", "analysis": result['output']['text']}
+        analysis_text = result['output']['text']
+        
+        end_time = time.time()
+        latency = round(end_time - start_time, 2)
+        
+        # Log data for Paranjay's paper
+        log_for_research(file.filename, analysis_text, latency)
+
+        return {"status": "success", "analysis": analysis_text, "latency": latency}
     
     except Exception as e:
-        # Fallback for testing without AWS credentials active
-        return {"status": "success", "analysis": "Simulated Analysis: Major crush detected on the top right corner. SOP Rule 12B applies."}
+        return {"status": "error", "message": str(e)}
 
 @app.post("/generate-voice")
 async def generate_voice(request: VoiceRequest):
-    """Text-to-Speech: Converts reasoning to audio using Nova 2 Sonic"""
+    """Text-to-Speech: Converts reasoning to audio using Nova 2 Sonic."""
     try:
         system_context = "You are the NovaClaim-X Logistics Supervisor. Speak professionally."
         full_prompt = f"{system_context} {request.text}"
