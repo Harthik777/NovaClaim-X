@@ -1,7 +1,22 @@
 [
-    {"case_id": "HIST-001", "historical_damage": "Minor Scratches", "sop_action": "Auto-Deploy"},
-    {"case_id": "HIST-002", "historical_damage": "Severe Crushing", "sop_action": "Require Escalation to human"},
-    {"case_id": "HIST-003", "historical_damage": "Punctured Box", "sop_action": "Require Escalation to human"},
-    {"case_id": "HIST-004", "historical_damage": "Water Damage", "sop_action": "Require Escalation to human"},
-    {"case_id": "HIST-005", "historical_damage": "No visible damage", "sop_action": "REJECT claim"}
-  ]
+    {
+        "case_id": "HIST-001", 
+        "historical_damage": "Minor Scratches, dented corners, cosmetic wear, superficial marks", 
+        "sop_action": "DEPLOY"
+    },
+    {
+        "case_id": "HIST-002", 
+        "historical_damage": "Severe Crushing, structural collapse, exposed contents, punctured walls", 
+        "sop_action": "ESCALATE"
+    },
+    {
+        "case_id": "HIST-003", 
+        "historical_damage": "Water Damage, moisture stains, damp cardboard, liquid leakage", 
+        "sop_action": "ESCALATE"
+    },
+    {
+        "case_id": "HIST-004", 
+        "historical_damage": "No visible damage, perfect condition, intact seals, factory state", 
+        "sop_action": "REJECT"
+    }
+]
