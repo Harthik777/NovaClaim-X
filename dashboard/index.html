@@ -6,7 +6,6 @@
     <style>
         .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-left: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Custom scrollbar for logs */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -33,29 +32,34 @@
                 
                 <input type="file" id="image-upload" accept="image/*" class="mb-4 block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:uppercase file:bg-slate-800 file:text-blue-400 hover:file:bg-slate-700 cursor-pointer transition-colors"/>
                 
+                <div class="flex items-center justify-between mb-4 p-3 bg-slate-950 rounded border border-slate-800">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Adversarial Mutation (Chaos)</span>
+                    <input type="checkbox" id="chaos-toggle" class="w-4 h-4 accent-blue-500">
+                </div>
+
                 <button id="exec-btn" onclick="runPipeline()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded text-sm uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span id="btn-text">Initialize Reasoning Pipeline</span>
+                    <span id="btn-text">Initialize VLA Loop</span>
                     <span id="btn-loader" class="loader hidden"></span>
                 </button>
             </div>
 
             <div class="bg-slate-900 p-6 rounded-lg border border-slate-800 shadow-2xl">
-                <h2 class="text-lg font-semibold text-white mb-4">Extracted Telemetry</h2>
+                <h2 class="text-lg font-semibold text-white mb-4">Research Telemetry</h2>
                 <div class="grid grid-cols-2 gap-4 text-xs">
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Damage Classification</span>
-                        <span id="meta-damage" class="text-blue-400 font-bold text-sm">--</span>
+                        <span class="text-slate-500 block mb-1">Target Anchor</span>
+                        <span id="meta-anchor" class="text-blue-400 font-bold text-sm">--</span>
                     </div>
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Confidence Score</span>
-                        <span id="meta-conf" class="text-green-400 font-bold text-sm">--</span>
+                        <span class="text-slate-500 block mb-1">MF-Score (Fidelity)</span>
+                        <span id="meta-mf" class="text-green-400 font-bold text-sm">--</span>
                     </div>
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Inferred Coordinates</span>
-                        <span id="meta-coords" class="text-purple-400 font-bold text-sm">--</span>
+                        <span class="text-slate-500 block mb-1">Confidence</span>
+                        <span id="meta-conf" class="text-purple-400 font-bold text-sm">--</span>
                     </div>
                     <div class="bg-slate-950 p-3 rounded border border-slate-800">
-                        <span class="text-slate-500 block mb-1">Processing Latency</span>
+                        <span class="text-slate-500 block mb-1">RTD Latency</span>
                         <span id="meta-latency" class="text-yellow-400 font-bold text-sm">--</span>
                     </div>
                 </div>
@@ -68,7 +72,7 @@
                 <div class="text-slate-500">> System initialized. Waiting for optical input...</div>
             </div>
             <div class="absolute bottom-3 right-4 text-[10px] text-slate-600 uppercase tracking-widest flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Logging Active
+                <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div> VLA Active
             </div>
         </div>
     </div>
@@ -81,86 +85,72 @@
             const btnText = document.getElementById('btn-text');
             const loader = document.getElementById('btn-loader');
             const indicator = document.getElementById('status-indicator');
-
             indicator.innerText = message;
 
             if (state === 'processing') {
                 btn.disabled = true;
-                btnText.innerText = "Processing...";
+                btnText.innerText = "Executing Loop...";
                 loader.classList.remove('hidden');
                 indicator.className = "text-xs font-bold px-3 py-1 rounded bg-blue-900 text-blue-300 border border-blue-700 animate-pulse";
-            } else if (state === 'idle') {
+            } else {
                 btn.disabled = false;
-                btnText.innerText = "Initialize Reasoning Pipeline";
-                loader.classList.hidden = true;
+                btnText.innerText = state === 'error' ? "Retry Pipeline" : "Initialize VLA Loop";
                 loader.classList.add('hidden');
-                indicator.className = "text-xs font-bold px-3 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700";
-            } else if (state === 'error') {
-                btn.disabled = false;
-                btnText.innerText = "Retry Pipeline";
-                loader.classList.add('hidden');
-                indicator.className = "text-xs font-bold px-3 py-1 rounded bg-red-900 text-red-300 border border-red-700";
+                indicator.className = state === 'error' ? "text-xs font-bold px-3 py-1 rounded bg-red-900 text-red-300 border border-red-700" : "text-xs font-bold px-3 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700";
             }
         }
 
         async function runPipeline() {
             const fileInput = document.getElementById('image-upload');
+            const isMutated = document.getElementById('chaos-toggle').checked;
+
             if (!fileInput.files[0]) {
                 addLog("ERROR: No optical input detected.", "text-red-500");
                 return;
             }
 
-            if (currentAudio) { currentAudio.pause(); } // Stop previous audio
+            if (currentAudio) { currentAudio.pause(); }
 
             const formData = new FormData();
             formData.append("file", fileInput.files[0]);
+            formData.append("is_mutated", isMutated);
+            formData.append("expected_action", "claim-submit-btn");
 
-            setUIState('processing', 'ANALYZING VISION METRICS');
-            addLog("Uploading image payload to Nova 2 Lite...", "text-slate-400");
+            setUIState('processing', 'CALLING NOVA VLA ENGINE');
+            addLog(`Initializing VLA Loop (Chaos: ${isMutated})...`, "text-slate-400");
 
             try {
-                // 1. Vision Phase
-                const visionRes = await fetch('http://localhost:8000/analyze-damage', { method: 'POST', body: formData });
-                if (!visionRes.ok) throw new Error(`Backend Error: ${visionRes.status}`);
-                const visionData = await visionRes.json();
+                // SINGLE UNIFIED CALL TO YOUR BACKEND
+                const response = await fetch('http://localhost:8000/vla/execute', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`VLA Engine Error: ${response.status}`);
                 
-                // Update Telemetry UI
-                document.getElementById('meta-damage').innerText = visionData.data.damage_type;
-                document.getElementById('meta-conf').innerText = `${(visionData.data.confidence_score * 100).toFixed(1)}%`;
-                document.getElementById('meta-coords').innerText = visionData.data.bounding_box;
-                document.getElementById('meta-latency').innerText = `${visionData.latency}s`;
+                const data = await response.json();
+                
+                // UPDATE RESEARCH TELEMETRY
+                document.getElementById('meta-anchor').innerText = data.target_anchor;
+                document.getElementById('meta-mf').innerText = data.telemetry.mf_score;
+                document.getElementById('meta-conf').innerText = `${(data.telemetry.confidence * 100).toFixed(1)}%`;
+                document.getElementById('meta-latency').innerText = `${data.telemetry.rtd_ms}ms`;
 
-                addLog(`Vision Logic Complete. Latency: ${visionData.latency}s`);
-                addLog(`Summary: ${visionData.data.summary}`, "text-white");
-                
-                setUIState('processing', 'SYNTHESIZING SONIC AUDIO');
-                addLog("Requesting Sonic Voice Authorization...", "text-slate-400");
-                
-                // 2. Voice Phase
-                const voiceRes = await fetch('http://localhost:8000/generate-voice', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: visionData.data.summary })
-                });
-                if (!voiceRes.ok) throw new Error(`Sonic Error: ${voiceRes.status}`);
-                const voiceData = await voiceRes.json();
+                addLog(`Action Identified: ${data.target_anchor.toUpperCase()}`, "text-blue-400 font-bold");
+                addLog("Status: Playing Sonic Reasoning Monologue...", "text-emerald-400 italic");
 
-                // 3. Play Audio
-                if (voiceData.status === "success" && voiceData.audio) {
-                    currentAudio = new Audio("data:audio/mp3;base64," + voiceData.audio);
+                // PLAY SONIC VOICE
+                if (data.audio_monologue) {
+                    currentAudio = new Audio("data:audio/mp3;base64," + data.audio_monologue);
                     currentAudio.play();
-                    addLog("Status: Sonic Output Playing...", "text-blue-400");
-                    setUIState('idle', 'PIPELINE COMPLETE');
                 }
+
+                setUIState('idle', 'PIPELINE COMPLETE');
             } catch (err) {
-                addLog(`CRITICAL FAILURE: ${err.message}`, "text-red-500 bg-red-950 p-2 rounded border border-red-900");
+                addLog(`CRITICAL FAILURE: ${err.message}`, "text-red-500");
                 setUIState('error', 'SYSTEM FAULT');
             }
         }
 
         function addLog(msg, colorClass = "text-emerald-500") {
             const logBox = document.getElementById('logs');
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric", second: "numeric" });
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
             logBox.innerHTML += `<div class="${colorClass}"><span class="text-slate-600">[${time}]</span> ${msg}</div>`;
             logBox.scrollTop = logBox.scrollHeight;
         }

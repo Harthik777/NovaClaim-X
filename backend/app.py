@@ -6,10 +6,20 @@ import time
 from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORTED CORS
 from sentence_transformers import SentenceTransformer, util
 
 # --- INITIALIZATION ---
 app = FastAPI(title="Agentic VLA Engine")
+
+# --- CORS CONFIGURATION (Crucial for index.html to talk to the backend) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows your local frontend to connect
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
 print("Loading Semantic Grounding Model (all-MiniLM-L6-v2)...")
