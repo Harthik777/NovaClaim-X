@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <script src="https://cdn.tailwindcss.com"></script>
     <title>Global Logistics - Carrier Portal 4.2</title>
 </head>
 <body class="bg-gray-50 p-10 font-sans text-gray-800">
     <div class="max-w-4xl mx-auto">
         <h1 class="text-3xl font-bold mb-2">Claim Processing Terminal</h1>
-        <p class="text-gray-500 mb-8">Internal use only. Enter package details to finalize claim.</p>
+        <p class="text-gray-500 mb-8 text-sm uppercase tracking-widest">Internal Use Only // VLA-Protocol Enabled</p>
 
         <div id="form-wrapper" class="bg-white p-8 shadow-lg rounded border-t-4 border-indigo-600 transition-all duration-500">
             
             <div id="field-container" class="flex flex-col gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Tracking ID</label>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1 text-xs uppercase">Tracking ID</label>
                     <input type="text" id="track_id" placeholder="e.g. TRK-9921" class="w-full border p-3 rounded bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Damage Category</label>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1 text-xs uppercase">Damage Category</label>
                     <select id="claim_cat" class="w-full border p-3 rounded bg-gray-50 outline-none">
                         <option>Select...</option>
                         <option>Crush</option>
@@ -28,47 +29,58 @@
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-600 mb-1">Authorization Details</label>
-                    <textarea id="auth_notes" rows="2" class="w-full border p-3 rounded bg-gray-50" placeholder="System reasoning..."></textarea>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1 text-xs uppercase">Authorization Notes</label>
+                    <textarea id="auth_notes" rows="2" class="w-full border p-3 rounded bg-gray-50" placeholder="Agent reasoning logs..."></textarea>
                 </div>
             </div>
 
             <div id="btn-container" class="mt-8 pt-6 border-t border-gray-100 flex justify-end">
-                <button id="submit_claim_btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded transition-all shadow-md">
+                
+                <button 
+                    id="submit_claim_btn" 
+                    data-semantic-role="FINAL_SUBMIT_ACTION" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded transition-all shadow-md">
                     Finalize & Submit Claim
                 </button>
-            </div>
+                </div>
         </div>
     </div>
 
-    <button onclick="activateChaosEngine()" class="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl transition-transform hover:scale-105 border-2 border-red-400 animate-bounce">
-        ⚠️ ACTIVATE CHAOS ENGINE
+    <button onclick="activateChaosEngine()" class="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-full font-bold shadow-2xl transition-transform hover:scale-105 border-2 border-red-400 animate-bounce flex items-center gap-2">
+        <span class="text-lg">⚠️</span> ACTIVATE CHAOS ENGINE
     </button>
 
     <script>
         function activateChaosEngine() {
-            // 1. Scramble IDs (Breaks standard Selenium/Playwright)
+            console.log("Initializing UI Mutation...");
+
+            // 1. Scramble IDs (Breaks standard RPA)
             const btn = document.getElementById('submit_claim_btn');
             btn.id = "rnd_" + Math.random().toString(36).substring(2, 10);
-            document.getElementById('track_id').id = "input_" + Date.now();
             
-            // 2. Change Button Text and styling
+            const trackInput = document.getElementById('track_id');
+            trackInput.id = "input_" + Date.now();
+            
+            // 2. Change Visual Appearance
             btn.innerText = "Execute Network Transfer";
-            btn.className = "bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-xl";
+            btn.className = "bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-xl uppercase text-xs tracking-tighter";
 
-            // 3. Scramble Layout (Breaks rigid XPaths)
+            // 3. Scramble Layout (Breaks positional automation)
             const container = document.getElementById('field-container');
-            container.classList.remove('flex-col');
-            container.classList.add('flex-col-reverse');
+            container.classList.toggle('flex-col-reverse');
 
-            // 4. Inject a dummy decoy button to trick dumb AI
+            // 4. Inject a dummy 'Trap' button for non-VLA bots
             const decoyBtn = document.createElement('button');
-            decoyBtn.innerText = "Submit Claim"; // The AI will look for this text!
+            decoyBtn.innerText = "Submit Claim"; 
             decoyBtn.className = "bg-gray-200 text-gray-400 font-bold py-3 px-8 rounded cursor-not-allowed opacity-50 ml-4";
-            decoyBtn.onclick = () => alert("Decoy Clicked! Automation Failed.");
-            document.getElementById('btn-container').prepend(decoyBtn);
+            decoyBtn.onclick = () => alert("FAIL: Decoy button clicked. VLA Reasoning unsuccessful.");
+            
+            // Clear and re-append to ensure the decoy is present
+            const btnContainer = document.getElementById('btn-container');
+            btnContainer.prepend(decoyBtn);
 
-            alert("🚨 CHAOS ENGINE ACTIVATED 🚨\n\nDOM IDs scrambled.\nLayout reversed.\nDecoy traps injected.\n\nStandard automation will now crash. Semantic VLA Anchoring required.");
+            console.log("UI Mutation Complete. Semantic Role 'FINAL_SUBMIT_ACTION' remains persistent.");
+            alert("🚨 CHAOS ENGINE ACTIVE 🚨\n\nIDs Scrambled.\nLayout Inverted.\nDecoy Traps Injected.\n\nOnly a VLA Agent can find the true submit button now.");
         }
     </script>
 </body>
