@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>NovaClaim-X Terminal</title>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-mono p-10">
+    <div class="max-w-5xl mx-auto grid grid-cols-2 gap-8">
+        
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+            <h2 class="text-xl font-bold text-blue-400 mb-4">VLA Vision Input</h2>
+            <input type="file" id="image-upload" class="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+            <button onclick="runPipeline()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded">
+                Execute Nova Reasoning
+            </button>
+        </div>
+
+        <div class="bg-black p-6 rounded-xl border border-green-900">
+            <h2 class="text-xl font-bold text-green-500 mb-4">Agentic Monologue</h2>
+            <div id="logs" class="h-64 overflow-y-auto text-sm text-green-400 space-y-2">
+                <div>> System Initialized... Waiting for visual input.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function runPipeline() {
+            const fileInput = document.getElementById('image-upload');
+            if (!fileInput.files[0]) return alert("Upload an image first!");
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            addLog("Uploading image to Nova 2 Lite...");
+
+            // 1. Get Vision Analysis
+            try {
+                const visionRes = await fetch('http://localhost:8000/analyze-damage', { method: 'POST', body: formData });
+                const visionData = await visionRes.json();
+                
+                if (visionData.status === "success") {
+                    addLog(`Vision Logic: ${visionData.analysis}`);
+                    addLog("Requesting Sonic Voice Authorization...");
+                    
+                    // 2. Trigger Voice Generation
+                    const voiceRes = await fetch('http://localhost:8000/generate-voice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: visionData.analysis })
+                    });
+                    const voiceData = await voiceRes.json();
+
+                    // 3. Play the Audio
+                    if (voiceData.status === "success" && voiceData.audio) {
+                        const audio = new Audio("data:audio/mp3;base64," + voiceData.audio);
+                        audio.play();
+                        addLog("Status: Sonic Voice Playing...");
+                    }
+                }
+            } catch (err) {
+                addLog(`Error connecting to backend: ${err.message}`);
+            }
+        }
+
+        function addLog(msg) {
+            const logBox = document.getElementById('logs');
+            logBox.innerHTML += `<div>> ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>

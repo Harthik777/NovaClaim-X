@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Carrier Portal</title>
+</head>
+<body class="bg-gray-100 p-10 font-sans">
+    <div class="max-w-md mx-auto bg-white p-8 shadow-md rounded">
+        <h1 class="text-2xl font-bold mb-6">File Damage Claim</h1>
+        <input type="text" id="track_id" placeholder="Tracking ID" class="w-full border p-2 mb-4 rounded">
+        <button id="submit_btn" class="w-full bg-blue-600 text-white font-bold py-2 rounded">Submit Claim</button>
+    </div>
+
+    <button onclick="sabotage()" class="fixed bottom-5 right-5 bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg">
+        ⚠️ SABOTAGE UI
+    </button>
+
+    <script>
+        function sabotage() {
+            const btn = document.getElementById('submit_btn');
+            btn.id = "random_" + Math.random().toString(36).substring(7);
+            btn.innerText = "Confirm Data";
+            alert("UI Sabotaged! Standard automation will now fail.");
+        }
+    </script>
+</body>
+</html>

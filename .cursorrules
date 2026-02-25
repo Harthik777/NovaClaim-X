@@ -1,0 +1,9 @@
+Project: NovaClaim-X (VLA Logistics Agent)
+Tech Stack: FastAPI, AWS Bedrock (Nova 2), Tailwind CSS, Playwright.
+
+Core Principles:
+1. Always use 'boto3' with 'us-east-1' for AWS Nova 2 Lite, Sonic, and Embedding calls.
+2. Implement 'Semantic Anchoring': If an automation step fails, use Nova Multimodal Embeddings to find the next best visual match instead of relying on DOM IDs.
+3. UI Style: Use Tailwind CSS with a 'Slate-900' dark-mode industrial theme.
+4. Logging: Every backend function must return an 'agentic_reasoning' string explaining what the AI is 'seeing' and 'thinking'.
+5. Vision-Language-Action (VLA): Ensure vision inputs from the camera are processed before generating action sequences.

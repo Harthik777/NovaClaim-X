@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# AWS credentials (never commit these)
+.aws/
+credentials
+
+# IDE / Editor
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Cursor
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node (if frontend tooling is added)
+node_modules/
+package-lock.json
