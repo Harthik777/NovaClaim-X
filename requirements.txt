@@ -1,5 +1,6 @@
 fastapi
 uvicorn
-boto3
 python-multipart
-pydantic
+boto3
+sentence-transformers
+torch
