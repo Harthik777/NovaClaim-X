@@ -19,6 +19,17 @@ print("Loading Semantic Grounding Model (all-MiniLM-L6-v2)...")
 similarity_model = SentenceTransformer('all-MiniLM-L6-v2')
 print("Model Loaded. Forensic VLA System Ready.")
 
+# Load Knowledge Base for True Dynamic RAG
+try:
+    with open("knowledge_base.json", "r") as f:
+        knowledge_base = json.load(f)
+    # Pre-compute embeddings for the knowledge base
+    kb_texts = [f"Historical Damage: {item['historical_damage']} -> Required SOP Action: {item['sop_action']}" for item in knowledge_base]
+    kb_embeddings = similarity_model.encode(kb_texts)
+except FileNotFoundError:
+    print("WARNING: knowledge_base.json not found. RAG will fail.")
+    knowledge_base = []
+
 # --- 2. RESEARCH TELEMETRY ---
 CSV_FILE = 'research_metrics.csv'
 try:
@@ -37,7 +48,7 @@ class ResearchObserver:
 
 observer = ResearchObserver()
 
-# --- 3. THE FORENSIC + SOP ENDPOINT ---
+# --- 3. THE FORENSIC + DYNAMIC RAG ENDPOINT ---
 @app.post("/vla/execute")
 async def execute_vla_loop(
     ui_screenshot: UploadFile = File(...), 
@@ -51,29 +62,36 @@ async def execute_vla_loop(
     evidence_bytes = await evidence_photo.read()
     claim_data = json.loads(claim_json)
     
-    # Q1 RESEARCH PROMPT: Multi-modal + SOP Grounding + Voice Governance
+    # --- TRUE RAG PIPELINE (Semantic Search) ---
+    reported_damage = claim_data.get("damage_reported", "")
+    query_embedding = similarity_model.encode(reported_damage)
+    
+    # Retrieve top 2 most similar historical cases
+    hits = util.semantic_search(query_embedding, kb_embeddings, top_k=2)[0]
+    retrieved_sops = "\n".join([kb_texts[hit['corpus_id']] for hit in hits])
+    # -------------------------------------------
+    
+    # Q1 RESEARCH PROMPT: Multi-modal + True RAG + Voice Governance
     prompt = f"""
     SYSTEM TASK: Autonomous Forensic Claim Verification & SOP Enforcement.
     DATA TO VERIFY: {json.dumps(claim_data)}
     
-    RETRIEVED SOP POLICY (RAG SIMULATION):
-    - Policy A: If damage is MINOR (scratches/dents), Auto-Deploy the claim.
-    - Policy B: If damage is MAJOR (crushed/broken), Require Escalation to human.
-    - Policy C: If package is PROPER (no damage) or data mismatches, REJECT.
+    DYNAMICALLY RETRIEVED HISTORICAL SOPs (Based on '{reported_damage}'):
+    {retrieved_sops}
     
     INSTRUCTIONS:
-    1. Analyze 'evidence_photo' to determine Damage Severity (MINOR, MAJOR, or PROPER).
+    1. Analyze 'evidence_photo' to determine Damage Severity.
     2. Check 'ui_screenshot' to ensure Data Integrity against DATA TO VERIFY.
-    3. Ground decision in the SOP Policy to determine the Action (DEPLOY, ESCALATE, REJECT).
+    3. Ground your decision entirely in the DYNAMICALLY RETRIEVED HISTORICAL SOPs to determine the Action (DEPLOY, ESCALATE, REJECT).
     4. Find the 'Submit Claim' semantic anchor in the UI.
     
     Respond strictly in JSON: 
     {{
         "damage_severity": "MINOR", "MAJOR", or "PROPER",
         "sop_decision": "DEPLOY", "ESCALATE", or "REJECT",
-        "thinking": "Explain forensic proof, data check, and SOP application",
+        "thinking": "Explain forensic proof, data check, and how retrieved SOPs were applied",
         "target_anchor": "semantic-role-name",
-        "voice_prompt": "Create a short 1-sentence summary of the damage, followed exactly by: 'Say Deploy to submit or Escalate to review.'"
+        "voice_prompt": "Create a short 1-sentence summary of the damage. End exactly with: 'Say Deploy to submit or Escalate to review.'"
     }}
     """
     
@@ -102,7 +120,6 @@ async def execute_vla_loop(
             csv.writer(f).writerow([datetime.now().isoformat(), is_mutated, rtd, mf_score, vla_data['damage_severity'], vla_data['sop_decision']])
 
         # VOICE GOVERNANCE SYNTHESIS (Nova 2 Sonic)
-        # Note: We are using the 'voice_prompt' here, not the internal 'thinking'
         audio_response = bedrock.invoke_model(
             modelId='amazon.nova-sonic-v1:0',
             body=json.dumps({"text": vla_data['voice_prompt'], "voice": "Expressive"})

@@ -1,0 +1,7 @@
+[
+    {"case_id": "HIST-001", "historical_damage": "Minor Scratches", "sop_action": "Auto-Deploy"},
+    {"case_id": "HIST-002", "historical_damage": "Severe Crushing", "sop_action": "Require Escalation to human"},
+    {"case_id": "HIST-003", "historical_damage": "Punctured Box", "sop_action": "Require Escalation to human"},
+    {"case_id": "HIST-004", "historical_damage": "Water Damage", "sop_action": "Require Escalation to human"},
+    {"case_id": "HIST-005", "historical_damage": "No visible damage", "sop_action": "REJECT claim"}
+  ]
