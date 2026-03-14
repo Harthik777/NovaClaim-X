@@ -167,18 +167,16 @@ async def execute_vla_loop(
     )
     
     try:
-        # Multimodal content array passed to the Strands Agent
+        # Multimodal content array passed to the Strands Agent using raw bytes
         proposal_response = proposer_agent([
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(evidence_bytes).decode()}}, 
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(ui_bytes).decode()}},
-            {"type": "text", "text": "Execute visual analysis and return the JSON layout."}
+            {"image": {"format": "jpeg", "source": {"bytes": evidence_bytes}}}, 
+            {"image": {"format": "jpeg", "source": {"bytes": ui_bytes}}},
+            {"text": "Execute visual analysis and return the JSON layout."}
         ])
         
         # Strands abstracts the response; we extract the raw text output
         proposal_text = proposal_response if isinstance(proposal_response, str) else str(proposal_response)
         
-        # Strands currently doesn't expose raw Bedrock token usage easily in the basic Agent call, 
-        # so we calculate a highly accurate estimate based on prompt length and image size for telemetry.
         tokens_a = 850 
         vla_data = json.loads(clean_json_response(proposal_text))
         
@@ -213,7 +211,7 @@ async def execute_vla_loop(
         import traceback
         error_details = traceback.format_exc()
         print(f"❌ AGENT EXECUTION FAILED:\n{error_details}")
-        return JSONResponse(content={"error": str(e), "status": "server_failure"}, status_code=500)
+        return JSONResponse(content={"error": str(e), "traceback": error_details, "status": "server_failure"}, status_code=500)
 
     # --- MERGE CONSENSUS ---
     is_approved = critique.get('approved', True)
