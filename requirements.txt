@@ -4,3 +4,4 @@ python-multipart
 boto3
 playwright
 requests
+strands-agents[bedrock]
