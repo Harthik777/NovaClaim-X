@@ -3,14 +3,14 @@ import base64
 import json
 import csv
 import time
+import math
 from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sentence_transformers import SentenceTransformer, util
 
 # --- 1. INITIALIZATION ---
-app = FastAPI(title="NovaClaim-X: Multi-Agent VLA Engine")
+app = FastAPI(title="NovaClaim-X: Multi-Agent VLA Engine (AWS-Native)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,30 +19,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Strictly us-east-1 for Amazon Nova models
 bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
-print("Loading Semantic Grounding Model (all-MiniLM-L6-v2)...")
-similarity_model = SentenceTransformer('all-MiniLM-L6-v2')
-print("Model Loaded. Multi-Agent System Ready.")
+# --- 2. AWS NOVA EMBEDDINGS & MATH HELPERS ---
+def get_aws_embedding(text):
+    """Fetches text embeddings strictly via Amazon Nova Multimodal Embeddings"""
+    request_body = {
+        "taskType": "SINGLE_EMBEDDING",
+        "singleEmbeddingParams": {
+            "embeddingPurpose": "GENERIC_INDEX",
+            "text": {"value": text}
+        }
+    }
+    try:
+        response = bedrock.invoke_model(
+            modelId='amazon.nova-2-multimodal-embeddings-v1:0', 
+            body=json.dumps(request_body)
+        )
+        return json.loads(response['body'].read())['embeddings'][0]['embedding']
+    except Exception as e:
+        print(f"AWS Embedding error: {e}")
+        return [0.0] * 1024 # Nova output dimension fallback
 
-# --- 2. DYNAMIC RAG SETUP (KNOWLEDGE BASE) ---
+def calculate_cosine_similarity(vec1, vec2):
+    """Pure Python implementation to replace torch/sentence-transformers."""
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    norm1 = math.sqrt(sum(a * a for a in vec1))
+    norm2 = math.sqrt(sum(b * b for b in vec2))
+    return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0.0
+
+# --- 3. DYNAMIC RAG SETUP (KNOWLEDGE BASE) ---
 try:
     with open("knowledge_base.json", "r") as f:
         knowledge_base = json.load(f)
     kb_texts = [f"Historical Damage: {item['historical_damage']} -> Action: {item['sop_action']}" for item in knowledge_base]
-    kb_embeddings = similarity_model.encode(kb_texts)
+    print("Vectorizing SOPs via Amazon Nova Embeddings...")
+    kb_embeddings = [get_aws_embedding(text) for text in kb_texts]
     print(f"Loaded {len(knowledge_base)} SOPs into Vector Space.")
 except FileNotFoundError:
-    print("WARNING: knowledge_base.json not found. RAG will be disabled. Create the file to enable Semantic Search.")
+    print("WARNING: knowledge_base.json not found. RAG will be disabled.")
     kb_texts = []
     kb_embeddings = []
 
-# --- 3. RESEARCH TELEMETRY ---
+# --- 4. RESEARCH TELEMETRY ---
 CSV_FILE = 'research_metrics.csv'
 try:
     with open(CSV_FILE, 'x', newline='') as f:
         writer = csv.writer(f)
-        # Added critic_interventions to track how often Agent B catches an error
         writer.writerow(['timestamp', 'chaos_level', 'rtd_ms', 'mf_score', 'damage_severity', 'sop_decision', 'critic_interventions'])
 except FileExistsError:
     pass
@@ -56,21 +80,17 @@ class ResearchObserver:
 
     def calculate_metrics(self, reasoning_text, expected_action):
         rtd_ms = (time.time() - self.start_time) * 1000
-        
-        # Calculate Monologue Fidelity (Cosine Similarity)
-        reason_vec = similarity_model.encode(reasoning_text)
-        action_vec = similarity_model.encode(expected_action)
-        mf_score = util.cos_sim(reason_vec, action_vec).item()
-        
+        reason_vec = get_aws_embedding(reasoning_text)
+        action_vec = get_aws_embedding(expected_action)
+        mf_score = calculate_cosine_similarity(reason_vec, action_vec)
         return round(rtd_ms, 2), round(mf_score, 4)
 
 observer = ResearchObserver()
 
 def clean_json_response(raw_text):
-    """Helper to strip markdown formatting if the LLM wraps the JSON."""
     return raw_text.strip().removeprefix("```json").removesuffix("```").strip()
 
-# --- 4. THE FORENSIC MULTI-AGENT ENDPOINT ---
+# --- 5. THE FORENSIC MULTI-AGENT ENDPOINT ---
 @app.post("/vla/execute")
 async def execute_vla_loop(
     ui_screenshot: UploadFile = File(...), 
@@ -80,7 +100,6 @@ async def execute_vla_loop(
 ):
     observer.start_clock()
     
-    # Process inputs
     ui_bytes = await ui_screenshot.read()
     evidence_bytes = await evidence_photo.read()
     
@@ -89,17 +108,22 @@ async def execute_vla_loop(
     except json.JSONDecodeError:
         return JSONResponse(content={"error": "Invalid Claim JSON format."}, status_code=400)
     
-    # --- RAG PIPELINE (Semantic Search) ---
+    # --- AWS RAG PIPELINE (Semantic Search) ---
     reported_damage = claim_data.get("damage_reported", "")
     if len(kb_embeddings) > 0 and reported_damage:
-        query_embedding = similarity_model.encode(reported_damage)
-        hits = util.semantic_search(query_embedding, kb_embeddings, top_k=2)[0]
-        retrieved_sops = "\n".join([kb_texts[hit['corpus_id']] for hit in hits])
+        query_embedding = get_aws_embedding(reported_damage)
+        
+        # Manual top-k search (Pure Python)
+        similarities = [(i, calculate_cosine_similarity(query_embedding, kb_emb)) for i, kb_emb in enumerate(kb_embeddings)]
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        top_hits = similarities[:2]
+        
+        retrieved_sops = "\n".join([kb_texts[hit[0]] for hit in top_hits])
     else:
         retrieved_sops = "No historical SOPs available. Default to standard processing."
     
     # =====================================================================
-    # PASS 1: AGENT A (THE PROPOSER) - Vision-Language Reasoning
+    # PASS 1: AGENT A (THE PROPOSER) - Amazon Nova 2 Lite
     # =====================================================================
     prompt_a = f"""
     SYSTEM TASK: Autonomous Forensic Claim Verification & Visual Grounding.
@@ -110,14 +134,14 @@ async def execute_vla_loop(
     1. Analyze 'evidence_photo' to determine Damage Severity.
     2. Check 'ui_screenshot' to ensure Data Integrity against DATA TO VERIFY.
     3. Ground your decision entirely in the RETRIEVED SOPs to determine Action (DEPLOY, ESCALATE, REJECT).
-    4. If DEPLOY is chosen, locate the 'Submit Claim' button on the 'ui_screenshot' and extract its spatial bounding box.
+    4. If DEPLOY is chosen, locate the submit button on the 'ui_screenshot'. Extract its spatial bounding box and read its exact text.
     
     Respond strictly in JSON: 
     {{
         "damage_severity": "MINOR", "MAJOR", or "PROPER",
         "sop_decision": "DEPLOY", "ESCALATE", or "REJECT",
         "thinking": "Explain forensic proof, data check, and how retrieved SOPs were applied",
-        "target_anchor": "semantic-role-name",
+        "target_anchor": "The exact visible text of the button (e.g., 'Submit Claim Validation')",
         "bounding_box": [ymin, xmin, ymax, xmax] format normalized 0-1000 scale, empty list [] if rejected/escalated,
         "voice_prompt": "1-sentence damage summary. End exactly with: 'Say Deploy to submit or Escalate to review.'"
     }}
@@ -141,16 +165,10 @@ async def execute_vla_loop(
         )
         
         raw_proposal = json.loads(vision_response['body'].read())
-        # Depending on how the API returns text, it might be in content[0]['text'] or raw depending on Bedrock's Nova wrapper.
-        # Assuming standard Bedrock Converse/Messages format structure mapped here:
-        if 'content' in raw_proposal:
-            vla_data = json.loads(clean_json_response(raw_proposal['content'][0]['text']))
-        else:
-            # Fallback if the response is direct JSON string
-            vla_data = raw_proposal
+        vla_data = json.loads(clean_json_response(raw_proposal['content'][0]['text'])) if 'content' in raw_proposal else raw_proposal
 
         # =====================================================================
-        # PASS 2: AGENT B (THE CRITIC) - Agentic Reflection & Alignment
+        # PASS 2: AGENT B (THE CRITIC) - Amazon Nova 2 Lite
         # =====================================================================
         prompt_b = f"""
         REVIEWER TASK: Validate Agent A's proposed decision against the strict SOP.
@@ -178,10 +196,7 @@ async def execute_vla_loop(
         )
         
         raw_critique = json.loads(critic_response['body'].read())
-        if 'content' in raw_critique:
-            critique = json.loads(clean_json_response(raw_critique['content'][0]['text']))
-        else:
-            critique = raw_critique
+        critique = json.loads(clean_json_response(raw_critique['content'][0]['text'])) if 'content' in raw_critique else raw_critique
 
         # --- MERGE MULTI-AGENT CONSENSUS ---
         is_approved = critique.get('approved', True)
@@ -204,16 +219,17 @@ async def execute_vla_loop(
                 final_vla.get('damage_severity'), final_vla.get('sop_decision'), critic_interventions
             ])
 
-        # --- NATIVE AUDIO SYNTHESIS (Nova 2 Sonic) ---
+        # --- NATIVE AUDIO SYNTHESIS (Amazon Nova 2 Sonic) ---
         audio_response = bedrock.invoke_model(
             modelId='amazon.nova-sonic-v1:0',
             body=json.dumps({"text": final_vla.get('voice_prompt', 'Error generating prompt.'), "voice": "Expressive"})
         )
         audio_base64 = base64.b64encode(audio_response['body'].read()).decode()
 
-        # --- FINAL PAYLOAD ---
+        # --- FINAL PAYLOAD (Compliant with .cursorrules logging constraint) ---
         return JSONResponse(content={
             "status": "success",
+            "agentic_reasoning": final_vla.get('thinking', 'No reasoning provided.'),
             "damage_severity": final_vla.get('damage_severity'),
             "sop_decision": final_vla.get('sop_decision'),
             "target_anchor": final_vla.get('target_anchor'),

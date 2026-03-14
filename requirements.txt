@@ -2,5 +2,5 @@ fastapi
 uvicorn
 python-multipart
 boto3
-sentence-transformers
-torch
+playwright
+requests
