@@ -18,5 +18,15 @@
         "case_id": "HIST-004", 
         "historical_damage": "No visible damage, perfect condition, intact seals, factory state", 
         "sop_action": "REJECT"
+    },
+    {
+        "case_id": "HIST-005", 
+        "historical_damage": "Mixed goods, battery leakage, hazardous materials, chemical spill", 
+        "sop_action": "REJECT" 
+    },
+    {
+        "case_id": "HIST-006", 
+        "historical_damage": "High-value electronics, missing security seal, tampered tape", 
+        "sop_action": "ESCALATE"
     }
 ]

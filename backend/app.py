@@ -43,7 +43,7 @@ def get_aws_embedding(text):
         return [0.0] * 1024 # Nova output dimension fallback
 
 def calculate_cosine_similarity(vec1, vec2):
-    """Pure Python implementation to replace torch/sentence-transformers."""
+    """Pure Python implementation."""
     dot_product = sum(a * b for a, b in zip(vec1, vec2))
     norm1 = math.sqrt(sum(a * a for a in vec1))
     norm2 = math.sqrt(sum(b * b for b in vec2))
@@ -67,7 +67,8 @@ CSV_FILE = 'research_metrics.csv'
 try:
     with open(CSV_FILE, 'x', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['timestamp', 'chaos_level', 'rtd_ms', 'mf_score', 'damage_severity', 'sop_decision', 'critic_interventions'])
+        # Added 'total_tokens' to the CSV header
+        writer.writerow(['timestamp', 'chaos_level', 'rtd_ms', 'mf_score', 'total_tokens', 'damage_severity', 'sop_decision', 'critic_interventions'])
 except FileExistsError:
     pass
 
@@ -113,7 +114,6 @@ async def execute_vla_loop(
     if len(kb_embeddings) > 0 and reported_damage:
         query_embedding = get_aws_embedding(reported_damage)
         
-        # Manual top-k search (Pure Python)
         similarities = [(i, calculate_cosine_similarity(query_embedding, kb_emb)) for i, kb_emb in enumerate(kb_embeddings)]
         similarities.sort(key=lambda x: x[1], reverse=True)
         top_hits = similarities[:2]
@@ -123,7 +123,7 @@ async def execute_vla_loop(
         retrieved_sops = "No historical SOPs available. Default to standard processing."
     
     # =====================================================================
-    # PASS 1: AGENT A (THE PROPOSER) - Amazon Nova 2 Lite
+    # PASS 1: AGENT A (THE PROPOSER)
     # =====================================================================
     prompt_a = f"""
     SYSTEM TASK: Autonomous Forensic Claim Verification & Visual Grounding.
@@ -164,11 +164,11 @@ async def execute_vla_loop(
             })
         )
         
-        raw_proposal = json.loads(vision_response['body'].read())
-        vla_data = json.loads(clean_json_response(raw_proposal['content'][0]['text'])) if 'content' in raw_proposal else raw_proposal
+        raw_proposal_body = json.loads(vision_response['body'].read())
+        vla_data = json.loads(clean_json_response(raw_proposal_body['content'][0]['text'])) if 'content' in raw_proposal_body else raw_proposal_body
 
         # =====================================================================
-        # PASS 2: AGENT B (THE CRITIC) - Amazon Nova 2 Lite
+        # PASS 2: AGENT B (THE CRITIC)
         # =====================================================================
         prompt_b = f"""
         REVIEWER TASK: Validate Agent A's proposed decision against the strict SOP.
@@ -195,8 +195,8 @@ async def execute_vla_loop(
             })
         )
         
-        raw_critique = json.loads(critic_response['body'].read())
-        critique = json.loads(clean_json_response(raw_critique['content'][0]['text'])) if 'content' in raw_critique else raw_critique
+        raw_critique_body = json.loads(critic_response['body'].read())
+        critique = json.loads(clean_json_response(raw_critique_body['content'][0]['text'])) if 'content' in raw_critique_body else raw_critique_body
 
         # --- MERGE MULTI-AGENT CONSENSUS ---
         is_approved = critique.get('approved', True)
@@ -205,6 +205,11 @@ async def execute_vla_loop(
 
         if not is_approved:
             print(f"⚠️ CRITIC INTERVENTION TRIGGERED: {critique.get('feedback')}")
+
+        # --- EXTRACT ENTERPRISE TOKEN USAGE ---
+        tokens_a = raw_proposal_body.get('usage', {}).get('totalTokens', 0)
+        tokens_b = raw_critique_body.get('usage', {}).get('totalTokens', 0)
+        total_tokens = tokens_a + tokens_b
 
         # --- TELEMETRY LOGGING ---
         rtd, mf_score = observer.calculate_metrics(
@@ -215,7 +220,7 @@ async def execute_vla_loop(
         with open(CSV_FILE, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
-                datetime.now().isoformat(), chaos_level, rtd, mf_score, 
+                datetime.now().isoformat(), chaos_level, rtd, mf_score, total_tokens,
                 final_vla.get('damage_severity'), final_vla.get('sop_decision'), critic_interventions
             ])
 
@@ -226,7 +231,7 @@ async def execute_vla_loop(
         )
         audio_base64 = base64.b64encode(audio_response['body'].read()).decode()
 
-        # --- FINAL PAYLOAD (Compliant with .cursorrules logging constraint) ---
+        # --- FINAL PAYLOAD ---
         return JSONResponse(content={
             "status": "success",
             "agentic_reasoning": final_vla.get('thinking', 'No reasoning provided.'),
@@ -240,7 +245,8 @@ async def execute_vla_loop(
             "telemetry": {
                 "rtd_ms": rtd,
                 "mf_score": mf_score,
-                "chaos_level": chaos_level
+                "chaos_level": chaos_level,
+                "total_tokens": total_tokens
             }
         })
 

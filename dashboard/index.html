@@ -28,16 +28,7 @@
             --accent-red: #ef4444;
             --accent-orange: #f59e0b;
         }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         header { text-align: center; margin-bottom: 30px; }
         header h1 { color: var(--accent-blue); margin: 0 0 10px 0; font-size: 2.5rem; letter-spacing: 1px; }
         .container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 1400px; width: 100%; }
@@ -134,12 +125,16 @@
 
                 <div class="data-point" style="display: flex; justify-content: space-between; border-left-color: #94a3b8;">
                     <div>
-                        <span>E2E Latency (RTD)</span>
+                        <span>E2E Latency</span>
                         <strong id="out-rtd">0 ms</strong>
                     </div>
                     <div>
-                        <span>Fidelity (MF-Score)</span>
+                        <span>Fidelity (MF)</span>
                         <strong id="out-mf">0.000</strong>
+                    </div>
+                    <div>
+                        <span>Token Cost</span>
+                        <strong id="out-tokens">0</strong>
                     </div>
                 </div>
             </div>
@@ -180,12 +175,13 @@
                 const data = await response.json();
 
                 if (data.status === "success") {
-                    // Populate Data using the proper agentic_reasoning key
                     document.getElementById('out-thinking').innerText = data.agentic_reasoning;
                     document.getElementById('out-decision').innerText = data.sop_decision;
                     document.getElementById('out-anchor').innerText = data.target_anchor || "N/A";
                     document.getElementById('out-rtd').innerText = data.telemetry.rtd_ms.toFixed(0) + " ms";
                     document.getElementById('out-mf').innerText = data.telemetry.mf_score.toFixed(4);
+                    // Update Token UI
+                    document.getElementById('out-tokens').innerText = data.telemetry.total_tokens;
                     
                     const criticCard = document.getElementById('critic-card');
                     const criticStatus = document.getElementById('out-critic-status');
