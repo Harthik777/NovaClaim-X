@@ -2,9 +2,19 @@ import os
 import json
 import boto3
 import math
-from playwright.sync_api import sync_playwright
+from importlib import import_module
 
 bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
+
+def get_sync_playwright():
+    """Lazy import so editors/environments without playwright don't fail at import time."""
+    try:
+        return import_module("playwright.sync_api").sync_playwright
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Playwright is not installed in the active Python environment. "
+            "Install it with `pip install playwright`."
+        ) from exc
 
 def get_aws_embedding(text):
     """Fetches text embeddings strictly via Amazon Nova Multimodal Embeddings"""
@@ -39,6 +49,7 @@ def execute_vla_action(tracking_id, date, desc, decision, target_anchor):
         print("🛑 Agentic Decision was not DEPLOY. Halting automation for Human Review.")
         return False
 
+    sync_playwright = get_sync_playwright()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
